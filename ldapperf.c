@@ -685,6 +685,11 @@ int main(int argc, char **argv)
 		num_loops = names_cnt;
 	}
 
+	{
+		LDAP *ld;
+		ldap_initialize(&ld, "");
+	}
+
 	INFO("Performing %i search(es) total, with %i threads, %s",
 	     (num_loops * num_pthreads), num_pthreads,
 	     rebind ? "rebinding after each search" : "with persistent connections");
