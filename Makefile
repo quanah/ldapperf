@@ -1,5 +1,5 @@
 ldapperf: ldapperf.c
-	cc -Wall -o $@ $< -L/opt/zimbra/openldap/lib -lldap_r -lpthread -llber  -I /opt/zimbra/openldap/include  -Wl,-rpath,/opt/zimbra/openldap/lib
+	cc -g -O0 -Wall -o $@ $< -L/opt/zimbra/openldap/lib -lldap_r -lpthread -llber  -I /opt/zimbra/openldap/include  -Wl,-rpath,/opt/zimbra/openldap/lib
 
 tar: clean
 	tar -cvf ldapperf.tar *
