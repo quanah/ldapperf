@@ -144,7 +144,7 @@ void usage(char const *path, int code)
 #endif
 	       "base)\n");
 	printf("  -S             Print statistics after all queries have completed\n");
-	printf("  -H <host>      Host to connect to (default ldap://127.0.0.1)\n");
+	printf("  -H <uri>       Host to connect to (default ldap://127.0.0.1)\n");
 	printf("  -o <ordered>   Search for each of the names in the -r <file> in order, using a single thread\n");
 	printf("  -d             Decode received entry (default no)\n");
 	printf("  -D <dn>        Bind DN\n");
@@ -352,11 +352,11 @@ static LDAP *lp_conn_init(lp_thread_t *thread)
 	/* Bind to the server */
 	if (bind_dn && password) {
 		struct berval cred;
-		cred.bv_val = (char *) password;
-		cred.bv_len = strlen( password );
+		cred.bv_val = (char *)password;
+		cred.bv_len = strlen(password);
 
 		rc = ldap_sasl_bind_s(ld, bind_dn, LDAP_SASL_SIMPLE, &cred, NULL, NULL, NULL);
-		if (rc != LDAP_SUCCESS ){
+		if (rc != LDAP_SUCCESS){
 			TERROR("ldap_sasl_bind_s: %s", ldap_err2string(rc));
 			thread->stats.error_bind_fail++;
 			ldap_unbind_ext(ld, NULL, NULL);
@@ -381,7 +381,6 @@ static int lp_query_perform(lp_thread_t *thread, LDAP *ld, lp_name_t *subst)
 {
 	int		i = 0, rc = 0, entry_count = 0;
 	char		*attribute, *dn;
-	struct berval	**values;
 
 	LDAPMessage	*search_result = NULL, *entry;
 	char const	*filter_p = filter;
@@ -434,17 +433,26 @@ static int lp_query_perform(lp_thread_t *thread, LDAP *ld, lp_name_t *subst)
 			for (attribute = ldap_first_attribute(ld, entry, &ber);
 			     attribute;
 			     attribute = ldap_next_attribute(ld, entry, ber)) {
+				int		count;
+				struct berval	**values;
+
+				values = ldap_get_values_len(ld, entry, attribute);
+				if (!values) goto next;
+
+				count = ldap_count_values_len(values);
+				if (!count) goto next;
+
 				/* Get values and print.  Assumes all values are strings. */
-				if ((values = ldap_get_values_len(ld, entry, attribute)) != NULL){
-					for (i = 0; values[i]->bv_val != NULL; i++) {
-						TDEBUG("\t%s: %.*s", attribute, (int)values[i]->bv_len,
-						       values[i]->bv_val);
-					}
-					ldap_value_free_len(values);
+				for (i = 0; i < count; i++) {
+					TDEBUG("\t%s: %.*s", attribute, (int)values[i]->bv_len,
+					       values[i]->bv_val);
 				}
+
+			next:
+				ldap_value_free_len(values);
+				ldap_memfree(attribute);
 			}
 			ber_free(ber, 0);
-			ldap_memfree(attribute);
 		}
 	}
 
@@ -693,6 +701,12 @@ int main(int argc, char **argv)
 	INFO("Performing %i search(es) total, with %i threads, %s",
 	     (num_loops * num_pthreads), num_pthreads,
 	     rebind ? "rebinding after each search" : "with persistent connections");
+
+	/* Work around initialisation race in libldap */
+	{
+		LDAP *ld;
+		ldap_initialize(&ld, "");
+	}
 
 	gettimeofday(&stats.before, NULL);
 	for (i = 0; i < num_pthreads; i++) {
